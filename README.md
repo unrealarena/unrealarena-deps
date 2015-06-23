@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/unrealarena/unrealarena-deps.svg?branch=master)](https://travis-ci.org/unrealarena/unrealarena-deps)
+
 # Unreal Arena - deps
 
 Utilities for compiling Unreal Arena dependencies on the various supported
