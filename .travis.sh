@@ -27,11 +27,12 @@ linux64-before_install() {
 # install
 linux64-install() {
 	sudo apt-get -qq install cmake cmake-data gcc-4.7 g++-4.7 libasound2-dev libgl1-mesa-dev libx11-dev libxext-dev nasm zip
+	sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.7 100 --slave /usr/bin/g++ g++ /usr/bin/g++-4.7
 }
 
 # before_script
 linux64-before_script() {
-	sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.7 100 --slave /usr/bin/g++ g++ /usr/bin/g++-4.7
+	true
 }
 
 # script
@@ -43,7 +44,7 @@ linux64-script() {
 linux64-before_deploy() {
 	find "linux64-${DEPS_VERSION}" -name "*.pc" -delete
 	find "linux64-${DEPS_VERSION}" -empty -delete
-	tar cJvf "${ARCHIVE}" "linux64-${DEPS_VERSION}"
+	tar cJvf "${OS}-${DEPS_VERSION}.${EXT}" "linux64-${DEPS_VERSION}"
 }
 
 

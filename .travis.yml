@@ -18,7 +18,7 @@ env:
     - DEPS_VERSION=3
   matrix:
     - OS="linux64"
-      ARCHIVE="${OS}-${DEPS_VERSION}.tar.xz"
+      EXT="tar.xz"
 
 before_install:
   - ./.travis.sh "${OS}" "before_install"
@@ -39,7 +39,7 @@ deploy:
   provider: releases
   api_key:
     secure: BQE/kI6aDtG0VBWV6rfRECyZLNMUNJT+etHYqRs5DIOGsBQXN8V0zKZYMLADAKWw+kSCyRMWeLkb5nymSIbEhiO2fMkQqsCw2J9ICprRqXK5DCQSCxbcIsmDe9zeADhiG5n+a6tLNcf2h1B5OqBnTNumzLepfmLy8RavyEuncp4Nyo0pBOkNQAJiuKxJPrqM0Va9TbNxr8Mgo74AhaWLM8elfM+iatSmsRD7w1Gg0NzZZKSTtNOofJwvkNc9/WJEOCZVeg/VUg18LWDZkWsdxAu57mD5wiia2xo48Yd6zEbQV02fvc49rN7bKfB19k2NhomjMjIFnakqVRWoQC3F65XxgImKhfkQ1+PXYy2QBoyvzS7MbVnCZQwrKk1B05Uf7ScUxK2hULhgfWV60nIlUFtJr7lXrNM+2NvWLl3dUk8jRfMvNBc4Sd+c504wYXvpEhg9iLzx9UjKMEpJEPWilPdZ8rzkTbZGn2h82He0fqXV77Kg9r6Y6OfAjcaKTFeg+F3vBgeRmskHXRZESmkZoWYk+M0NQb09azl/8ydj36twv0EejiqkShhQXn0Q/Vu3nAml9JIxeI4ZQ2Ju7bDVvp/YergjuFjYqfi/wDnEAtLtZdpRl+G+IMV7B9sfpDuYmooUtYLLFR3J7P+q/1RS7adUABfz43DJ7fY00iy7zYE=
-  file: "${ARCHIVE}"
+  file: "${OS}-${DEPS_VERSION}.${EXT}"
   skip_cleanup: true
   on:
     tags: true
