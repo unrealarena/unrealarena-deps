@@ -34,28 +34,29 @@ set -e
 # Setup ------------------------------------------------------------------------
 
 # Dependencies version
-DEPS_VERSION=3
+DEPS_VERSION=4
 
 # Libraries versions
-CURL_VERSION=7.40.0
-FREETYPE_VERSION=2.5.5
+CURL_VERSION=7.43.0
+FREETYPE_VERSION=2.6
 GEOIP_VERSION=1.6.4
 GLEW_VERSION=1.12.0
 GMP_VERSION=6.0.0
-JPEG_VERSION=1.4.0
-NACLSDK_VERSION=41.0.2272.53
+JPEG_VERSION=1.4.1
+LUA_VERSION=5.3.1
+NACLSDK_VERSION=44.0.2403.155
 NCURSES_VERSION=5.9
-NETTLE_VERSION=3.0
+NETTLE_VERSION=3.1.1
 OGG_VERSION=1.3.2
 OPENAL_VERSION=1.16.0
 OPUSFILE_VERSION=0.6
 OPUS_VERSION=1.1
-PNG_VERSION=1.6.16
+PNG_VERSION=1.6.18
 SDL2_VERSION=2.0.3
 SPEEX_VERSION=1.2rc1
 THEORA_VERSION=1.1.1
-VORBIS_VERSION=1.3.4
-WEBP_VERSION=0.4.2
+VORBIS_VERSION=1.3.5
+WEBP_VERSION=0.4.3
 ZLIB_VERSION=1.2.8
 
 # Build environment
@@ -288,7 +289,7 @@ build_jpeg() {
 	_cd "libjpeg-turbo-${JPEG_VERSION}"
 	_prepare "${LIBNAME}"
 
-	sed -i -e '/^docdir/ s:$:/libjpeg-turbo-1.4.0:' -e '/^exampledir/ s:$:/libjpeg-turbo-1.4.0:' Makefile.in
+	sed -i -e '/^docdir/ s:$:/libjpeg-turbo-1.4.1:' Makefile.in
 
 	_configure "${LIBNAME}" "--mandir=${DESTDIR}/share/man --disable-shared --with-jpeg8 --without-turbojpeg"
 	_build "${LIBNAME}"
@@ -300,12 +301,52 @@ build_jpeg() {
 	rm -rf "${DESTDIR}/bin/rdjpgcom"
 	rm -rf "${DESTDIR}/bin/wrjpgcom"
 	rm -rf "${DESTDIR}/lib/libjpeg.la"
-	rm -rf "${DESTDIR}/share/doc/libjpeg-turbo-1.4.0/"
+	rm -rf "${DESTDIR}/share/doc/libjpeg-turbo-1.4.1/"
 	rm -rf "${DESTDIR}/share/man/man1/cjpeg.1"
 	rm -rf "${DESTDIR}/share/man/man1/djpeg.1"
 	rm -rf "${DESTDIR}/share/man/man1/jpegtran.1"
 	rm -rf "${DESTDIR}/share/man/man1/rdjpgcom.1"
 	rm -rf "${DESTDIR}/share/man/man1/wrjpgcom.1"
+
+	_done
+}
+
+# Build Lua
+build_lua() {
+	LIBNAME="Lua"
+
+	_get "http://www.lua.org/ftp/lua-${LUA_VERSION}.tar.gz"
+	_cd "lua-${LUA_VERSION}"
+	_prepare "${LIBNAME}"
+
+	sed -i -e "/^PLAT=/s:none:linux:" -e "/^INSTALL_TOP=/s:/usr/local:${DESTDIR}:" Makefile
+
+	_build "${LIBNAME}"
+	_install "${LIBNAME}"
+
+	rm -rf "${DESTDIR}/bin/lua"*
+	rm -rf "${DESTDIR}/bin/luac"*
+	rm -rf "${DESTDIR}/man/man1/lua.1"
+	rm -rf "${DESTDIR}/man/man1/luac.1"
+
+	_done
+}
+
+# Build NaCl Ports
+build_naclports() {
+	LIBNAME="NaCl Ports"
+
+	_get "https://storage.googleapis.com/nativeclient-mirror/nacl/nacl_sdk/${NACLSDK_VERSION}/naclports.tar.bz2"
+	_cd "pepper_${NACLSDK_VERSION%%.*}"
+
+	echo "Installing ${LIBNAME} ..."
+
+	mkdir -p "${DESTDIR}/pnacl_deps/include"
+	mkdir -p "${DESTDIR}/pnacl_deps/lib"
+
+	cp -a "ports/include/"{lauxlib.h,luaconf.h,lua.h,lua.hpp,lualib.h} "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/freetype2" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/lib/newlib_pnacl/Release/"{libfreetype.a,liblua.a,libpng16.a,libpng.a} "${DESTDIR}/pnacl_deps/lib"
 
 	_done
 }
@@ -325,8 +366,9 @@ build_naclsdk() {
 	# cp -a "toolchain/linux_x86_newlib/bin/x86_64-nacl-gdb" "${DESTDIR}/nacl-gdb"
 	cp -a "toolchain/linux_pnacl" "${DESTDIR}/pnacl"
 
+	rm -rf "${DESTDIR}/pnacl/arm-nacl"
 	rm -rf "${DESTDIR}/pnacl/arm_bc-nacl"
-	rm -rf "${DESTDIR}/pnacl/bin/"{i686,x86_64}-nacl-*
+	rm -rf "${DESTDIR}/pnacl/bin/"{arm,i686,x86_64}-nacl-*
 	rm -rf "${DESTDIR}/pnacl/docs"
 	rm -rf "${DESTDIR}/pnacl/FEATURE_VERSION"
 	rm -rf "${DESTDIR}/pnacl/i686_bc-nacl"
@@ -349,7 +391,7 @@ build_ncurses() {
 	_cd "ncurses-${NCURSES_VERSION}"
 	_prepare "${LIBNAME}"
 
-	wget -qcO "ncurses-5.9-gcc5_buildfixes-1.patch" "http://www.linuxfromscratch.org/patches/lfs/development/ncurses-5.9-gcc5_buildfixes-1.patch"
+	wget -qcO "ncurses-5.9-gcc5_buildfixes-1.patch" "http://lfs-matrix.net/patches/lfs/development/ncurses-5.9-gcc5_buildfixes-1.patch"
 	patch -sNp1 -i ncurses-5.9-gcc5_buildfixes-1.patch
 	sed -i '/LIBTOOL_INSTALL/d' c++/Makefile.in
 
@@ -558,7 +600,7 @@ build_vorbis() {
 	rm -rf "${DESTDIR}/lib/libvorbis.la"
 	rm -rf "${DESTDIR}/lib/pkgconfig/vorbis"*
 	rm -rf "${DESTDIR}/share/aclocal/vorbis.m4"
-	rm -rf "${DESTDIR}/share/doc/libvorbis-1.3.4/"
+	rm -rf "${DESTDIR}/share/doc/libvorbis-1.3.5/"
 
 	_done
 }
@@ -607,7 +649,9 @@ build_freetype
 build_geoip
 build_glew
 build_gmp
-build_jpeg
+build_jpeg  # [deps: nasm]
+build_lua
+build_naclports
 build_naclsdk
 build_ncurses
 build_nettle  # [deps: gmp]
@@ -617,7 +661,7 @@ build_opus
 build_opusfile  # [deps: ogg, opus]
 build_png
 build_sdl2
-# build_speex  # [deps: ogg]
+build_speex  # [deps: ogg]
 build_vorbis  # [deps: ogg]
 build_theora  # [deps: ogg, vorbis, png]
 build_webp
