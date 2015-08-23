@@ -71,8 +71,8 @@ mkdir -p "${DESTDIR}"
 
 # Compiler
 export CHOST="x86_64-unknown-linux-gnu"
-export CFLAGS="-m64 -fPIC -Os -pipe"  # -fPIC is needed for 64-bit static libraries
-export CXXFLAGS="-m64 -fPIC -Os -pipe"  # -fPIC is needed for 64-bit static libraries
+export CFLAGS="-m64 -fPIC -O2 -pipe"  # -fPIC is needed for 64-bit static libraries
+export CXXFLAGS="-m64 -fPIC -O2 -pipe"  # -fPIC is needed for 64-bit static libraries
 export CPPFLAGS="${CPPFLAGS:-} -I${DESTDIR}/include"
 export LDFLAGS="${LDFLAGS:-} -L${DESTDIR}/lib -L${DESTDIR}/lib64"
 export PATH="${DESTDIR}/bin:${PATH}"
