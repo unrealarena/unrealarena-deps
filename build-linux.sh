@@ -16,7 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Build all the external dependencies needed for Unreal Arena.
+# Build all the external dependencies needed for Unreal Arena on Linux.
 
 
 # Arguments parsing
@@ -62,7 +62,7 @@ ZLIB_VERSION=1.2.8
 # Build environment
 ROOTDIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 CACHEDIR="${ROOTDIR}/cache"
-BUILDDIR="${ROOTDIR}/build-linux64-${DEPS_VERSION}"
+BUILDDIR="${ROOTDIR}/build-linux-${DEPS_VERSION}"
 DESTDIR="${ROOTDIR}/linux64-${DEPS_VERSION}"
 mkdir -p "${CACHEDIR}"
 mkdir -p "${BUILDDIR}"
