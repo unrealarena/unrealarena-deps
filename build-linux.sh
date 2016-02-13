@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Shell script
-# Copyright (C) 2015  Unreal Arena
+# Copyright (C) 2015-2016  Unreal Arena
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,22 +15,25 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-# Build all the external dependencies needed for Unreal Arena on Linux.
+# Build all the external dependencies needed by Unreal Arena on Linux.
 
+
+################################################################################
+# Setup
+################################################################################
 
 # Arguments parsing
-if [ $# -eq 1 -a "${1}" == "-v" ]; then
-	VERBOSE=1
-elif [ $# -gt 0 ]; then
-	echo "Usage: ${0} [-v]"
-	exit 1
+if [ $# -gt 0 ]; then
+	if [ $# -eq 1 -a "${1}" == "-v" ]; then
+		VERBOSE=1
+	else
+		echo "Usage: ${0} [-v]"
+		exit 1
+	fi
 fi
 
 # Enable exit on error
 set -e
-
-
-# Setup ------------------------------------------------------------------------
 
 # Dependencies version
 DEPS_VERSION=4
@@ -53,7 +55,7 @@ OPUSFILE_VERSION=0.6
 OPUS_VERSION=1.1
 PNG_VERSION=1.6.18
 SDL2_VERSION=2.0.3
-SPEEX_VERSION=1.2rc1
+SPEEX_VERSION=1.2rc2  # 1.2rc1
 THEORA_VERSION=1.1.1
 VORBIS_VERSION=1.3.5
 WEBP_VERSION=0.4.3
@@ -62,27 +64,45 @@ ZLIB_VERSION=1.2.8
 # Build environment
 ROOTDIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
 CACHEDIR="${ROOTDIR}/cache"
-BUILDDIR="${ROOTDIR}/build-linux-${DEPS_VERSION}"
-DESTDIR="${ROOTDIR}/linux64-${DEPS_VERSION}"
+BUILDDIR="${ROOTDIR}/build"
+DESTDIR="${ROOTDIR}/linux-${DEPS_VERSION}"
 mkdir -p "${CACHEDIR}"
 mkdir -p "${BUILDDIR}"
 rm -rf "${DESTDIR}"
 mkdir -p "${DESTDIR}"
 
 # Compiler
-export CHOST="x86_64-unknown-linux-gnu"
+export HOST="x86_64-unknown-linux-gnu"
 export CFLAGS="-m64 -fPIC -O2 -pipe"  # -fPIC is needed for 64-bit static libraries
 export CXXFLAGS="-m64 -fPIC -O2 -pipe"  # -fPIC is needed for 64-bit static libraries
 export CPPFLAGS="${CPPFLAGS:-} -I${DESTDIR}/include"
 export LDFLAGS="${LDFLAGS:-} -L${DESTDIR}/lib -L${DESTDIR}/lib64"
 export PATH="${DESTDIR}/bin:${PATH}"
 export PKG_CONFIG_PATH="${DESTDIR}/lib/pkgconfig:${DESTDIR}/lib64/pkgconfig:${PKG_CONFIG_PATH}"
+export CMAKE_BUILD_TYPE="Release"
 
 # Limit parallel jobs to avoid being killed when on Travis CI
 export MAKEFLAGS="-j$(($(nproc)<8?$(nproc):8))"
 
 
-# Utilities --------------------------------------------------------------------
+################################################################################
+# Utilities
+################################################################################
+
+# Enable quiet mode
+# Usage: _begin_quiet
+_begin_quiet() {
+	exec 3>&1
+	exec 4>&2
+	exec &> /dev/null
+}
+
+# Disable quiet mode
+# Usage: _end_quiet
+_end_quiet() {
+	exec 1>&3 3>&-
+	exec 2>&4 4>&-
+}
 
 # Download a package (if it is not in the cache) and extract it
 # Usage: _get <URL>
@@ -102,10 +122,6 @@ _get() {
 		*.tar.bz2|*.tar.gz|*.tgz)
 			tar xf "${CACHEDIR}/${FILENAME}" -C "${BUILDDIR}" --recursive-unlink
 			;;
-		# *.zip)
-		# 	rm -rf "${BUILDDIR}/${FILENAME%.zip}"
-		# 	unzip -q "${CACHEDIR}/${FILENAME}" -d "${BUILDDIR}"
-		# 	;;
 		*)
 			echo "Error: unknown archive type (${FILENAME})"
 			exit 1
@@ -129,17 +145,34 @@ _prepare() {
 	echo "Preparing ${LIBNAME} ..."
 }
 
-# Prepare for build
+# Prepare for build (configure)
 # Usage: _configure <LIBNAME> <OPTIONS>
 _configure() {
 	LIBNAME="${1}"
-	OPTIONS="${2}"
+	OPTIONS="${@:2}"
 
-	if [ $VERBOSE ]; then
-		./configure --prefix="${DESTDIR}" ${OPTIONS}
-	else
-		./configure --prefix="${DESTDIR}" ${OPTIONS} &> /dev/null
-	fi
+	[[ $VERBOSE ]] || _begin_quiet
+
+	./configure --build="${HOST}"\
+	            --prefix="${DESTDIR}"\
+	            ${OPTIONS}
+
+	[[ $VERBOSE ]] || _end_quiet
+}
+
+# Prepare for build (cmake)
+# Usage: _cmake <LIBNAME> <OPTIONS>
+_cmake() {
+	LIBNAME="${1}"
+	OPTIONS="${@:2}"
+
+	[[ $VERBOSE ]] || _begin_quiet
+
+	cmake -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE}"\
+	      -DCMAKE_INSTALL_PREFIX="${DESTDIR}"\
+	      ${OPTIONS}
+
+	[[ $VERBOSE ]] || _end_quiet
 }
 
 # Build a package
@@ -149,11 +182,11 @@ _build() {
 
 	echo "Building ${LIBNAME} ..."
 
-	if [ $VERBOSE ]; then
-		make
-	else
-		make &> /dev/null
-	fi
+	[[ $VERBOSE ]] || _begin_quiet
+
+	make
+
+	[[ $VERBOSE ]] || _end_quiet
 }
 
 # Install a package
@@ -163,11 +196,11 @@ _install() {
 
 	echo "Installing ${LIBNAME} ..."
 
-	if [ $VERBOSE ]; then
-		make install
-	else
-		make install &> /dev/null
-	fi
+	[[ $VERBOSE ]] || _begin_quiet
+
+	make install
+
+	[[ $VERBOSE ]] || _end_quiet
 }
 
 # Notify successful library installation
@@ -177,7 +210,9 @@ _done() {
 }
 
 
-# Routines ---------------------------------------------------------------------
+################################################################################
+# Routines
+################################################################################
 
 # Build curl
 build_curl() {
@@ -186,7 +221,12 @@ build_curl() {
 	_get "http://curl.haxx.se/download/curl-${CURL_VERSION}.tar.bz2"
 	_cd "curl-${CURL_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-ldap --without-ssl --without-libssh2 --without-librtmp --without-libidn"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --disable-ldap\
+	                        --without-ssl\
+	                        --without-libssh2\
+	                        --without-librtmp\
+	                        --without-libidn
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -209,10 +249,13 @@ build_freetype() {
 	_cd "freetype-${FREETYPE_VERSION}"
 	_prepare "${LIBNAME}"
 
-	sed -i  -e "/AUX.*.gxvalid/s@^# @@" -e "/AUX.*.otvalid/s@^# @@" modules.cfg
+	sed -i -e "/AUX.*.gxvalid/s@^# @@" -e "/AUX.*.otvalid/s@^# @@" modules.cfg
 	# sed -ri -e 's:.*(#.*SUBPIXEL.*) .*:\1:' include/config/ftoption.h
 
-	_configure "${LIBNAME}" "--disable-shared --without-bzip2 --without-png --without-harfbuzz"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --without-bzip2\
+	                        --without-png\
+	                        --without-harfbuzz
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -234,7 +277,7 @@ build_geoip() {
 
 	autoreconf -fi &> /dev/null
 
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -258,7 +301,7 @@ build_glew() {
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
-	rm -rf "${DESTDIR}/lib64/libGLEW.so"*
+	rm -rf "${DESTDIR}/lib64/libGLEW.a"
 
 	_done
 }
@@ -270,7 +313,7 @@ build_gmp() {
 	_get "https://gmplib.org/download/gmp/gmp-${GMP_VERSION}a.tar.bz2"
 	_cd "gmp-${GMP_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -289,9 +332,12 @@ build_jpeg() {
 	_cd "libjpeg-turbo-${JPEG_VERSION}"
 	_prepare "${LIBNAME}"
 
-	sed -i -e '/^docdir/ s:$:/libjpeg-turbo-1.4.1:' Makefile.in
+	sed -i -e "/^docdir/ s:$:/libjpeg-turbo-${JPEG_VERSION}:" Makefile.in
 
-	_configure "${LIBNAME}" "--mandir=${DESTDIR}/share/man --disable-shared --with-jpeg8 --without-turbojpeg"
+	_configure "${LIBNAME}" "--mandir=${DESTDIR}/share/man"\
+	                        --disable-shared\
+	                        --with-jpeg8\
+	                        --without-turbojpeg
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -301,7 +347,7 @@ build_jpeg() {
 	rm -rf "${DESTDIR}/bin/rdjpgcom"
 	rm -rf "${DESTDIR}/bin/wrjpgcom"
 	rm -rf "${DESTDIR}/lib/libjpeg.la"
-	rm -rf "${DESTDIR}/share/doc/libjpeg-turbo-1.4.1/"
+	rm -rf "${DESTDIR}/share/doc/libjpeg-turbo-${JPEG_VERSION}"
 	rm -rf "${DESTDIR}/share/man/man1/cjpeg.1"
 	rm -rf "${DESTDIR}/share/man/man1/djpeg.1"
 	rm -rf "${DESTDIR}/share/man/man1/jpegtran.1"
@@ -325,9 +371,7 @@ build_lua() {
 	_install "${LIBNAME}"
 
 	rm -rf "${DESTDIR}/bin/lua"*
-	rm -rf "${DESTDIR}/bin/luac"*
-	rm -rf "${DESTDIR}/man/man1/lua.1"
-	rm -rf "${DESTDIR}/man/man1/luac.1"
+	rm -rf "${DESTDIR}/man/man1/lua"*
 
 	_done
 }
@@ -344,9 +388,20 @@ build_naclports() {
 	mkdir -p "${DESTDIR}/pnacl_deps/include"
 	mkdir -p "${DESTDIR}/pnacl_deps/lib"
 
-	cp -a "ports/include/"{lauxlib.h,luaconf.h,lua.h,lua.hpp,lualib.h} "${DESTDIR}/pnacl_deps/include"
 	cp -a "ports/include/freetype2" "${DESTDIR}/pnacl_deps/include"
-	cp -a "ports/lib/newlib_pnacl/Release/"{libfreetype.a,liblua.a,libpng16.a,libpng.a} "${DESTDIR}/pnacl_deps/lib"
+	cp -a "ports/include/lauxlib.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/luaconf.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/lua.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/lua.hpp" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/lualib.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/png.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/pngconf.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/libpng16" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/include/pnglibconf.h" "${DESTDIR}/pnacl_deps/include"
+	cp -a "ports/lib/newlib_pnacl/Release/libfreetype.a" "${DESTDIR}/pnacl_deps/lib"
+	cp -a "ports/lib/newlib_pnacl/Release/liblua.a" "${DESTDIR}/pnacl_deps/lib"
+	cp -a "ports/lib/newlib_pnacl/Release/libpng16.a" "${DESTDIR}/pnacl_deps/lib"
+	cp -a "ports/lib/newlib_pnacl/Release/libpng.a" "${DESTDIR}/pnacl_deps/lib"
 
 	_done
 }
@@ -368,7 +423,9 @@ build_naclsdk() {
 
 	rm -rf "${DESTDIR}/pnacl/arm-nacl"
 	rm -rf "${DESTDIR}/pnacl/arm_bc-nacl"
-	rm -rf "${DESTDIR}/pnacl/bin/"{arm,i686,x86_64}-nacl-*
+	rm -rf "${DESTDIR}/pnacl/bin/arm-nacl-"*
+	rm -rf "${DESTDIR}/pnacl/bin/i686-nacl-"*
+	rm -rf "${DESTDIR}/pnacl/bin/x86_64-nacl-"*
 	rm -rf "${DESTDIR}/pnacl/docs"
 	rm -rf "${DESTDIR}/pnacl/FEATURE_VERSION"
 	rm -rf "${DESTDIR}/pnacl/i686_bc-nacl"
@@ -391,11 +448,15 @@ build_ncurses() {
 	_cd "ncurses-${NCURSES_VERSION}"
 	_prepare "${LIBNAME}"
 
-	wget -qcO "ncurses-5.9-gcc5_buildfixes-1.patch" "http://lfs-matrix.net/patches/lfs/development/ncurses-5.9-gcc5_buildfixes-1.patch"
+	wget -qcO "ncurses-5.9-gcc5_buildfixes-1.patch" "http://www.linuxfromscratch.org/patches/downloads/ncurses/ncurses-5.9-gcc5_buildfixes-1.patch"
 	patch -sNp1 -i ncurses-5.9-gcc5_buildfixes-1.patch
 	sed -i '/LIBTOOL_INSTALL/d' c++/Makefile.in
 
-	_configure "${LIBNAME}" "--without-manpages --without-progs --without-tests --without-debug --enable-widec"
+	_configure "${LIBNAME}" --without-manpages\
+	                        --without-progs\
+	                        --without-tests\
+	                        --without-debug\
+	                        --enable-widec
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -415,7 +476,8 @@ build_nettle() {
 	_get "http://www.lysator.liu.se/~nisse/archive/nettle-${NETTLE_VERSION}.tar.gz"
 	_cd "nettle-${NETTLE_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-documentation"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --disable-documentation
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -433,13 +495,13 @@ build_ogg() {
 	_get "http://downloads.xiph.org/releases/ogg/libogg-${OGG_VERSION}.tar.gz"
 	_cd "libogg-${OGG_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
 	rm -rf "${DESTDIR}/lib/libogg.la"
 	rm -rf "${DESTDIR}/share/aclocal/ogg.m4"
-	rm -rf "${DESTDIR}/share/doc/libogg/"
+	rm -rf "${DESTDIR}/share/doc/libogg"
 
 	_done
 }
@@ -450,19 +512,11 @@ build_openal() {
 
 	_get "http://kcat.strangesoft.net/openal-releases/openal-soft-${OPENAL_VERSION}.tar.bz2"
 	_cd "openal-soft-${OPENAL_VERSION}"
-	_prepare "${LIBNAME}"
-
-	if [ $VERBOSE ]; then
-		cmake -DCMAKE_INSTALL_PREFIX="${DESTDIR}" -DLIBTYPE=STATIC -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF
-	else
-		cmake -DCMAKE_INSTALL_PREFIX="${DESTDIR}" -DLIBTYPE=STATIC -DALSOFT_UTILS=OFF -DALSOFT_EXAMPLES=OFF &> /dev/null
-	fi
-
+	_cmake "${LIBNAME}" -DALSOFT_UTILS=OFF\
+	                    -DALSOFT_EXAMPLES=OFF
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
-	echo -ne "create libopenal.pre.a\naddlib libopenal.a\naddlib libcommon.a\nsave\nend\n" | ar -M
-	cp -f libopenal.pre.a "${DESTDIR}/lib/libopenal.a"
 	rm -rf "${DESTDIR}/share/openal"
 
 	_done
@@ -475,7 +529,9 @@ build_opus() {
 	_get "http://downloads.xiph.org/releases/opus/opus-${OPUS_VERSION}.tar.gz"
 	_cd "opus-${OPUS_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-extra-programs --disable-doc"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --disable-extra-programs\
+	                        --disable-doc
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -492,7 +548,9 @@ build_opusfile() {
 	_get "http://downloads.xiph.org/releases/opus/opusfile-${OPUSFILE_VERSION}.tar.gz"
 	_cd "opusfile-${OPUSFILE_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-http --disable-doc"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --disable-http\
+	                        --disable-doc
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -510,7 +568,7 @@ build_png() {
 	_get "http://download.sourceforge.net/libpng/libpng-${PNG_VERSION}.tar.gz"
 	_cd "libpng-${PNG_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -518,7 +576,6 @@ build_png() {
 	rm -rf "${DESTDIR}/bin/png"*
 	rm -rf "${DESTDIR}/lib/libpng.la"
 	rm -rf "${DESTDIR}/lib/libpng16.la"
-	rm -rf "${DESTDIR}/lib/pkgconfig/libpng"*
 	rm -rf "${DESTDIR}/share/man/man3/libpng"*
 	rm -rf "${DESTDIR}/share/man/man5/png.5"
 
@@ -532,12 +589,14 @@ build_sdl2() {
 	_get "https://www.libsdl.org/release/SDL2-${SDL2_VERSION}.tar.gz"
 	_cd "SDL2-${SDL2_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-alsatest"
+	_configure "${LIBNAME}" --disable-alsatest
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
 	rm -rf "${DESTDIR}/bin/sdl2-config"
+	rm -rf "${DESTDIR}/lib/libSDL2.a"
 	rm -rf "${DESTDIR}/lib/libSDL2.la"
+	rm -rf "${DESTDIR}/lib/libSDL2_test.a"
 	rm -rf "${DESTDIR}/share/aclocal/sdl2.m4"
 
 	_done
@@ -550,16 +609,13 @@ build_speex() {
 	_get "http://downloads.xiph.org/releases/speex/speex-${SPEEX_VERSION}.tar.gz"
 	_cd "speex-${SPEEX_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
-	rm -rf "${DESTDIR}/bin/speex"*
 	rm -rf "${DESTDIR}/lib/libspeex.la"
-	rm -rf "${DESTDIR}/lib/libspeexdsp.la"
 	rm -rf "${DESTDIR}/share/aclocal/speex.m4"
-	rm -rf "${DESTDIR}/share/doc/speex"
-	rm -rf "${DESTDIR}/share/man/man1/speex"*
+	rm -rf "${DESTDIR}/share/doc/speex/manual.pdf"
 
 	_done
 }
@@ -571,15 +627,16 @@ build_theora() {
 	_get "http://downloads.xiph.org/releases/theora/libtheora-${THEORA_VERSION}.tar.bz2"
 	_cd "libtheora-${THEORA_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared --disable-encode --disable-examples"
+	_configure "${LIBNAME}" --disable-shared\
+	                        --disable-encode\
+	                        --disable-examples
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
+	rm -rf "${DESTDIR}/lib/libtheora.la"
 	rm -rf "${DESTDIR}/lib/libtheoradec.la"
 	rm -rf "${DESTDIR}/lib/libtheoraenc.la"
-	rm -rf "${DESTDIR}/lib/libtheora.la"
-	rm -rf "${DESTDIR}/lib/pkgconfig/theora"*
-	rm -rf "${DESTDIR}/share/doc/libtheora-1.1.1"
+	rm -rf "${DESTDIR}/share/doc/libtheora-${THEORA_VERSION}"
 
 	_done
 }
@@ -591,16 +648,15 @@ build_vorbis() {
 	_get "http://downloads.xiph.org/releases/vorbis/libvorbis-${VORBIS_VERSION}.tar.gz"
 	_cd "libvorbis-${VORBIS_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
+	rm -rf "${DESTDIR}/lib/libvorbis.la"
 	rm -rf "${DESTDIR}/lib/libvorbisenc.la"
 	rm -rf "${DESTDIR}/lib/libvorbisfile.la"
-	rm -rf "${DESTDIR}/lib/libvorbis.la"
-	rm -rf "${DESTDIR}/lib/pkgconfig/vorbis"*
 	rm -rf "${DESTDIR}/share/aclocal/vorbis.m4"
-	rm -rf "${DESTDIR}/share/doc/libvorbis-1.3.5/"
+	rm -rf "${DESTDIR}/share/doc/libvorbis-${VORBIS_VERSION}"
 
 	_done
 }
@@ -612,7 +668,7 @@ build_webp() {
 	_get "http://downloads.webmproject.org/releases/webp/libwebp-${WEBP_VERSION}.tar.gz"
 	_cd "libwebp-${WEBP_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--disable-shared"
+	_configure "${LIBNAME}" --disable-shared
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -632,7 +688,8 @@ build_zlib() {
 	_get "http://zlib.net/zlib-${ZLIB_VERSION}.tar.gz"
 	_cd "zlib-${ZLIB_VERSION}"
 	_prepare "${LIBNAME}"
-	_configure "${LIBNAME}" "--const --static"
+	_configure "${LIBNAME}" --const\
+	                        --static
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
 
@@ -642,7 +699,9 @@ build_zlib() {
 }
 
 
-# Main -------------------------------------------------------------------------
+################################################################################
+# Main
+################################################################################
 
 build_curl
 build_freetype

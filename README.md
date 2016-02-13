@@ -14,7 +14,7 @@ If you were looking for the main repository then check it out at
 ### Linux
 
 ```bash
-$ ./build-linux64.sh
+$ ./build-linux.sh
 ```
 
 

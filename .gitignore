@@ -1,4 +1,4 @@
 # Ignore build stuff
 /cache
-/build-linux64-*
-/linux64-*
+/build
+/linux-*
