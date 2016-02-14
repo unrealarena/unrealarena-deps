@@ -113,7 +113,7 @@ _get() {
 	# Download
 	echo "Downloading ${FILENAME} ..."
 	if [ ! -f "${CACHEDIR}/${FILENAME}" ]; then
-		wget -qcO "${CACHEDIR}/${FILENAME}" "${URL}"
+		curl -Lso "${CACHEDIR}/${FILENAME}" "${URL}"
 	fi
 
 	# Extract
@@ -448,7 +448,7 @@ build_ncurses() {
 	_cd "ncurses-${NCURSES_VERSION}"
 	_prepare "${LIBNAME}"
 
-	wget -qcO "ncurses-5.9-gcc5_buildfixes-1.patch" "http://www.linuxfromscratch.org/patches/downloads/ncurses/ncurses-5.9-gcc5_buildfixes-1.patch"
+	curl -Lso "ncurses-5.9-gcc5_buildfixes-1.patch" "http://www.linuxfromscratch.org/patches/downloads/ncurses/ncurses-5.9-gcc5_buildfixes-1.patch"
 	patch -sNp1 -i ncurses-5.9-gcc5_buildfixes-1.patch
 	sed -i '/LIBTOOL_INSTALL/d' c++/Makefile.in
 
