@@ -70,9 +70,43 @@ linux-script() {
 
 # before_deploy
 linux-before_deploy() {
-	find linux-* -name "*.pc" -delete
+	find linux-* -name \*.pc -delete
 	find linux-* -empty -delete
-	zip -r9 --symlinks linux.zip linux-*
+	zip -r9 --symlinks "${TRAVIS_OS_NAME}.zip" linux-*
+}
+
+
+################################################################################
+# Routines (osx)
+################################################################################
+
+# before_install
+osx-before_install() {
+	brew update
+}
+
+# install
+osx-install() {
+	brew install coreutils\
+	             gnu-sed\
+	             gnu-tar
+}
+
+# before_script
+osx-before_script() {
+	true
+}
+
+# script
+osx-script() {
+	./build-osx.sh
+}
+
+# before_deploy
+osx-before_deploy() {
+	find osx-* -name \*.pc -delete
+	find osx-* -empty -delete
+	zip -r9 --symlinks "${TRAVIS_OS_NAME}.zip" osx-*
 }
 
 

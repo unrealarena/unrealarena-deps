@@ -20,7 +20,9 @@ $ ./build-linux.sh
 
 ### OS X
 
-*TODO*
+```bash
+$ ./build-osx.sh
+```
 
 
 ### Windows
