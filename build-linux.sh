@@ -366,6 +366,7 @@ build_lua() {
 	_prepare "${LIBNAME}"
 
 	sed -i -e "/^PLAT=/s:none:linux:" -e "/^INSTALL_TOP=/s:/usr/local:${DESTDIR}:" Makefile
+	sed -i -e "/^CFLAGS=/s:-O2:-fPIC -O2:" src/Makefile
 
 	_build "${LIBNAME}"
 	_install "${LIBNAME}"
